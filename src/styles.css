@@ -100,7 +100,6 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 232px;
   flex: 0 0 auto;
 }
 .topbar__logo {
@@ -120,9 +119,11 @@ button {
   white-space: nowrap;
 }
 
+/* `min-width` explícito: sin él este bloque se encogía hasta 0px y el título
+   se desbordaba por encima de los botones de deshacer. */
 .topbar__doc {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 110px;
 }
 .topbar__docname {
   display: flex;
@@ -131,13 +132,14 @@ button {
 }
 .topbar__docname h1 {
   margin: 0;
+  min-width: 0;
+  max-width: 240px;
   font-size: 14.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 240px;
 }
 .topbar__docname button {
   display: grid;
@@ -417,15 +419,33 @@ button {
   }
 }
 
-@media (max-width: 880px) {
-  .topbar__brand {
-    width: auto;
-  }
+/* La barra superior va soltando piezas en este orden, medido sobre el ancho
+   real que ocupan: nombre del producto e indicador de guardado, después las
+   etiquetas de los botones secundarios, y por último el historial. */
+@media (max-width: 1180px) {
   .topbar__product,
   .topbar__saved {
     display: none;
   }
-  .topbar__actions .tbtn:not(.tbtn--primary):not(.tbtn--caret) span {
+}
+
+@media (max-width: 1000px) {
+  .topbar__actions .tbtn:not(.tbtn--primary) .tbtn__label {
+    display: none;
+  }
+  .topbar__actions .tbtn:not(.tbtn--primary) {
+    padding: 0 9px;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    gap: 10px;
+  }
+  .topbar__history {
+    display: none;
+  }
+  .topbar__meta {
     display: none;
   }
 }

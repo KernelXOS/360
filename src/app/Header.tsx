@@ -88,13 +88,19 @@ export function Header({
       <SaveIndicator savedAt={savedAt} />
 
       <div className="topbar__actions">
-        <button className="tbtn" onClick={onPreview}>
+        {/* Las etiquetas van en un span para poder ocultarlas en pantallas
+            angostas y dejar solo el icono. */}
+        <button className="tbtn" onClick={onPreview} title="Vista previa">
           <Play size={15} strokeWidth={1.75} />
-          Vista previa
+          <span className="tbtn__label">Vista previa</span>
         </button>
-        <button className={`tbtn${walking ? ' tbtn--on' : ''}`} onClick={onWalk}>
+        <button
+          className={`tbtn${walking ? ' tbtn--on' : ''}`}
+          onClick={onWalk}
+          title="Recorrer tour a pantalla completa"
+        >
           <Footprints size={15} strokeWidth={1.75} />
-          Recorrer tour
+          <span className="tbtn__label">Recorrer tour</span>
         </button>
         <button
           className="tbtn"
@@ -102,7 +108,7 @@ export function Header({
           title="Necesita la exportación del visor autónomo, que todavía no está hecha."
         >
           <Share2 size={15} strokeWidth={1.75} />
-          Compartir
+          <span className="tbtn__label">Compartir</span>
         </button>
         <div className="tbtn__split">
           <button
@@ -111,7 +117,7 @@ export function Header({
             title="Necesita la exportación del visor autónomo, que todavía no está hecha."
           >
             <Rocket size={15} strokeWidth={1.75} />
-            Publicar
+            <span className="tbtn__label">Publicar</span>
           </button>
           <button className="tbtn tbtn--primary tbtn--caret" disabled aria-label="Más opciones">
             <ChevronDown size={15} strokeWidth={1.75} />
