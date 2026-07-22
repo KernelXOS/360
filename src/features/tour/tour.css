@@ -1,0 +1,211 @@
+/* ---------------------------------------------------------------
+   Visor de tour y puntos interactivos
+   Los marcadores son HTML proyectado desde 3D, no sprites de WebGL:
+   texto nitido, animaciones CSS y clics nativos.
+   --------------------------------------------------------------- */
+
+.tourviewer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0d1017;
+}
+/* A pantalla completa el borde redondeado sobra. */
+.tourviewer:fullscreen {
+  border: none;
+  border-radius: 0;
+}
+.tourviewer__canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.tourviewer__canvas:active {
+  cursor: grabbing;
+}
+.tourviewer__canvas canvas {
+  display: block;
+  touch-action: none;
+}
+.tourviewer--placing .tourviewer__canvas,
+.tourviewer--placing .tourviewer__canvas:active {
+  cursor: crosshair;
+}
+
+/* La capa de puntos no debe robarle los clics al lienzo: solo los
+   marcadores vuelven a activarlos. */
+.tourviewer__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tourviewer__fade {
+  position: absolute;
+  inset: 0;
+  background: #05070b;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms ease-out;
+}
+.tourviewer__fade--on {
+  opacity: 1;
+  transition: none;
+}
+
+.tourviewer__banner {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(79, 140, 255, 0.92);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tourviewer__banner kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  font: inherit;
+}
+
+/* --- Marcador --- */
+
+.hs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+  visibility: hidden; /* el bucle de render la enciende al proyectar */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hs__core {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(16, 22, 34, 0.55);
+  backdrop-filter: blur(3px);
+  color: #fff;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+/* Anillo que late: hace que el punto se note sin tapar la foto. */
+.hs__pulse {
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  animation: hs-pulse 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  pointer-events: none;
+}
+@keyframes hs-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+.hs__label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(9, 12, 18, 0.88);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.hs:hover .hs__core,
+.hs:focus-visible .hs__core {
+  transform: scale(1.12);
+  background: rgba(79, 140, 255, 0.85);
+  border-color: #fff;
+}
+.hs:hover .hs__label,
+.hs:focus-visible .hs__label,
+.hs--selected .hs__label {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.hs:focus-visible {
+  outline: none;
+}
+
+/* Los puntos de información son más chicos: informan, no invitan a caminar. */
+.hs--info .hs__core {
+  width: 32px;
+  height: 32px;
+  background: rgba(224, 163, 58, 0.85);
+  border-color: rgba(255, 255, 255, 0.92);
+}
+.hs--info .hs__pulse {
+  width: 32px;
+  height: 32px;
+  animation-duration: 3.2s;
+}
+
+.hs--selected .hs__core {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.5), 0 3px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* Un salto sin destino es un callejón sin salida: que se vea. */
+.hs--broken .hs__core {
+  background: rgba(240, 97, 107, 0.85);
+  border-style: dashed;
+}
+.hs--broken .hs__pulse {
+  border-color: rgba(240, 97, 107, 0.9);
+}
+
+.hs--editing {
+  cursor: move;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hs__pulse {
+    animation: none;
+    opacity: 0.45;
+  }
+  .tourviewer__fade {
+    transition: none;
+  }
+}
