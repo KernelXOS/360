@@ -10,7 +10,8 @@ import { ScenesPanel } from '../features/tour/ScenesPanel';
 import { HotspotPanel } from '../features/tour/HotspotPanel';
 import { EmptyStage } from '../features/tour/EmptyStage';
 import { preloadScenes, useSceneBitmap, useTour } from '../features/tour/useTour';
-import { downloadSceneForFacebook } from '../features/tour/exportScene';
+import { downloadAllScenes, downloadScene } from '../features/tour/exportScene';
+import { OutputPanel } from '../features/tour/OutputPanel';
 import {
   brokenLinks,
   findScene,
@@ -116,13 +117,29 @@ export function App() {
     setTab('puntos');
   };
 
-  const handleExport = async () => {
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const handleDownloadScene = async () => {
     if (!scene) return;
+    setNotice(null);
     try {
-      await downloadSceneForFacebook(scene);
-      setNotice('Listo. Subilo a Facebook como una foto normal y lo muestra en 360.');
+      await downloadScene(scene);
+      setNotice(`Descargada en ${scene.width}×${scene.height}.`);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'No se pudo exportar.');
+      setNotice(e instanceof Error ? e.message : 'No se pudo descargar.');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    setNotice(null);
+    setExporting(`Empaquetando ${tour.scenes.length} panorámicas…`);
+    try {
+      const { count, bytes } = await downloadAllScenes(tour);
+      setNotice(`ZIP con ${count} panorámicas · ${(bytes / 1024 / 1024).toFixed(1)} MB.`);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'No se pudo armar el ZIP.');
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -305,13 +322,22 @@ export function App() {
                     Girá el visor hasta donde querés que mire el visitante al llegar, y tocá el
                     botón.
                   </p>
-                  <button className="btn" onClick={handleExport} style={{ marginTop: 10 }}>
-                    Descargar como foto 360 de Facebook
-                  </button>
                   {notice && <p className="alert alert--ok">{notice}</p>}
                 </section>
               </>
             ))}
+
+          {tab === 'salida' && (
+            <OutputPanel
+              tour={tour}
+              scene={scene}
+              onChangeWidth={tourApi.setOutputWidth}
+              onDownloadScene={handleDownloadScene}
+              onDownloadAll={handleDownloadAll}
+              busy={exporting}
+              notice={notice}
+            />
+          )}
 
           {tab === 'ajustes' && (
             <>

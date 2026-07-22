@@ -1,4 +1,5 @@
 import type { FitOptions } from '../../features/editor/fitToEquirect';
+import { DEFAULT_OUTPUT_WIDTH } from '../image/normalize';
 
 export type HotspotKind = 'link' | 'info';
 
@@ -37,6 +38,11 @@ export interface Tour {
   name: string;
   startSceneId: string | null;
   scenes: Scene[];
+  /**
+   * Ancho al que se normaliza toda panorámica al importarla. La altura es
+   * siempre la mitad: es lo que define una equirectangular de 360°×180°.
+   */
+  outputWidth: number;
   updatedAt: number;
 }
 
@@ -50,6 +56,7 @@ export function emptyTour(): Tour {
     name: 'Tour sin título',
     startSceneId: null,
     scenes: [],
+    outputWidth: DEFAULT_OUTPUT_WIDTH,
     updatedAt: Date.now(),
   };
 }

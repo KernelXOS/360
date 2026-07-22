@@ -8,8 +8,9 @@ import {
   type Scene,
   type Tour,
 } from '../../lib/tour/types';
-import { defaultFitOptions } from '../editor/fitToEquirect';
+import { defaultFitOptions, fitToEquirect } from '../editor/fitToEquirect';
 import { PREVIEW_MAX_WIDTH, readImage } from '../upload/readImage';
+import { DEFAULT_OUTPUT_WIDTH, normalizeToEquirect } from '../../lib/image/normalize';
 
 /** Bitmaps decodificados, fuera de React: sobreviven a los re-renders. */
 const bitmapCache = new Map<string, ImageBitmap>();
@@ -25,7 +26,10 @@ export function useTour() {
   useEffect(() => {
     loadTour()
       .then((stored) => {
-        if (stored?.scenes) setTour(stored);
+        // `outputWidth` puede faltar en tours guardados antes de existir.
+        if (stored?.scenes) {
+          setTour({ ...stored, outputWidth: stored.outputWidth || DEFAULT_OUTPUT_WIDTH });
+        }
       })
       .catch((e) => setError({ message: 'No se pudo leer el tour guardado.', detail: String(e) }))
       .finally(() => setReady(true));
@@ -95,23 +99,59 @@ export function useTour() {
     setHistoryTick((n) => n + 1);
   }, []);
 
+  const outputWidthRef = useRef(tour.outputWidth);
+  outputWidthRef.current = tour.outputWidth;
+
   const addScene = useCallback(async (file: File) => {
     setBusy(`Procesando ${file.name}…`);
     setError(null);
+    let fullSize: ImageBitmap | null = null;
     try {
+      // Valida el archivo y da las dimensiones reales del original.
       const image = await readImage(file);
+      image.preview.close();
+      image.full?.close();
+
+      // Para normalizar hace falta el original completo, no la copia recortada
+      // a 4096 que usa el visor: si el destino es más grande, ampliaríamos.
+      setBusy(`Convirtiendo ${file.name}…`);
+      fullSize = await createImageBitmap(file, { imageOrientation: 'none' });
+      const sourceFit = fitToEquirect(
+        image.width,
+        image.height,
+        defaultFitOptions(image.width, image.height),
+      );
+      const normalized = await normalizeToEquirect(fullSize, sourceFit, {
+        targetWidth: outputWidthRef.current,
+      });
+      fullSize.close();
+      fullSize = null;
+
       const imageId = createId('img');
-      await putImage(imageId, file);
-      bitmapCache.set(imageId, image.preview);
+      await putImage(imageId, normalized.blob);
+
+      // La textura del visor sale ya de la imagen normalizada.
+      const preview = await createImageBitmap(normalized.blob, {
+        imageOrientation: 'none',
+        ...(normalized.width > PREVIEW_MAX_WIDTH
+          ? {
+              resizeWidth: PREVIEW_MAX_WIDTH,
+              resizeHeight: Math.round(PREVIEW_MAX_WIDTH / 2),
+              resizeQuality: 'high' as const,
+            }
+          : {}),
+      });
+      bitmapCache.set(imageId, preview);
 
       const scene: Scene = {
         id: createId('scene'),
         name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Escena',
         imageId,
-        thumb: makeThumb(image.preview),
-        width: image.width,
-        height: image.height,
-        fit: defaultFitOptions(image.width, image.height),
+        thumb: makeThumb(preview),
+        // Ya es una equirectangular exacta, así que el encuadre es trivial.
+        width: normalized.width,
+        height: normalized.height,
+        fit: defaultFitOptions(normalized.width, normalized.height),
         initialYaw: 0,
         initialPitch: 0,
         hotspots: [],
@@ -124,6 +164,7 @@ export function useTour() {
       }));
       return scene.id;
     } catch (e) {
+      fullSize?.close();
       const detail = e instanceof Error ? ((e as { detail?: string }).detail ?? e.message) : String(e);
       setError({
         message: e instanceof Error ? e.message : 'No se pudo agregar la panorámica.',
@@ -216,6 +257,10 @@ export function useTour() {
   }, []);
 
   const renameTour = useCallback((name: string) => setTour((prev) => ({ ...prev, name })), []);
+  const setOutputWidth = useCallback(
+    (outputWidth: number) => setTour((prev) => ({ ...prev, outputWidth })),
+    [],
+  );
   const setStartScene = useCallback(
     (sceneId: string) => setTour((prev) => ({ ...prev, startSceneId: sceneId })),
     [],
@@ -241,6 +286,7 @@ export function useTour() {
     removeHotspot,
     renameTour,
     setStartScene,
+    setOutputWidth,
   };
 }
 

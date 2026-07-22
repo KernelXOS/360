@@ -1,11 +1,21 @@
-import { CircleHelp, Globe, Link2, Moon, Settings, Sun, Waypoints } from 'lucide-react';
+import {
+  CircleHelp,
+  Download,
+  Globe,
+  Link2,
+  Moon,
+  Settings,
+  Sun,
+  Waypoints,
+} from 'lucide-react';
 
-export type RailTab = 'escenas' | 'puntos' | 'encuadre' | 'ajustes';
+export type RailTab = 'escenas' | 'puntos' | 'encuadre' | 'salida' | 'ajustes';
 
 const TABS: Array<{ id: RailTab; label: string; Icon: typeof Waypoints }> = [
   { id: 'escenas', label: 'Escenas', Icon: Waypoints },
   { id: 'puntos', label: 'Puntos de navegación', Icon: Link2 },
   { id: 'encuadre', label: 'Encuadre de la escena', Icon: Globe },
+  { id: 'salida', label: 'Resolución y descargas', Icon: Download },
   { id: 'ajustes', label: 'Ajustes del tour', Icon: Settings },
 ];
 

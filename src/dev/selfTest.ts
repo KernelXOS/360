@@ -21,6 +21,8 @@ import {
   yawPitchFromScreen,
 } from '../lib/tour/geometry';
 import { brokenLinks, unreachableScenes, type Scene, type Tour } from '../lib/tour/types';
+import { normalizeToEquirect } from '../lib/image/normalize';
+import { buildZip, crc32, safeFileName } from '../lib/zip';
 
 interface Result {
   name: string;
@@ -35,6 +37,8 @@ export async function runSelfTest(): Promise<Result[]> {
   geometryTests(check);
   graphTests(check);
   await jpegTests(check);
+  await normalizeTests(check);
+  zipTests(check);
 
   console.table(results);
   const failed = results.filter((r) => !r.ok);
@@ -143,6 +147,7 @@ function graphTests(check: Check) {
     id: 't',
     name: 't',
     startSceneId: 'a',
+    outputWidth: 4096,
     updatedAt: 0,
     scenes: [
       scene('a', [link('h1', 'b'), link('h2', 'fantasma'), link('h3')]),
@@ -210,6 +215,88 @@ async function jpegTests(check: Check) {
       `${blocks.length} bloque(s) XMP`,
     );
   }
+}
+
+/**
+ * La normalización es lo que garantiza que todo lo que se suba termine con la
+ * misma medida exacta, venga de donde venga.
+ */
+async function normalizeTests(check: Check) {
+  const casos: Array<[string, number, number]> = [
+    ['equirectangular 2:1', 2048, 1024],
+    ['franja de celular', 6000, 1000],
+    ['más chica que el destino', 1024, 512],
+    ['impar', 3001, 1499],
+  ];
+
+  for (const [nombre, w, h] of casos) {
+    const fuente = await solidBitmap(w, h);
+    const fit = fitToEquirect(w, h, defaultFitOptions(w, h));
+    const salida = await normalizeToEquirect(fuente, fit, { targetWidth: 4096 });
+    fuente.close();
+
+    const bitmap = await createImageBitmap(salida.blob);
+    const exacta = bitmap.width === 4096 && bitmap.height === 2048;
+    check(
+      `normalizar ${nombre} (${w}×${h}) → 4096×2048`,
+      exacta,
+      `salió ${bitmap.width}×${bitmap.height}, ${(salida.blob.size / 1024).toFixed(0)} KB, ` +
+        `${salida.paddedRows} filas rellenadas`,
+    );
+    bitmap.close();
+  }
+
+  // Una franja tiene que quedar centrada en vertical, no pegada arriba: el
+  // relleno de arriba y el de abajo deben medir lo mismo.
+  const fit = fitToEquirect(6000, 1000, defaultFitOptions(6000, 1000));
+  const escala = 2048 / fit.meta.fullPanoWidthPixels;
+  const arriba = Math.round(fit.meta.croppedAreaTopPixels * escala);
+  const alto = Math.round(fit.meta.croppedAreaImageHeightPixels * escala);
+  const abajo = 1024 - (arriba + alto);
+  check(
+    'normalizar: la franja queda centrada en vertical',
+    Math.abs(arriba - abajo) <= 1 && arriba > 0,
+    `${arriba}px arriba, ${alto}px de foto, ${abajo}px abajo (de 1024)`,
+  );
+}
+
+function zipTests(check: Check) {
+  // Vector conocido: el CRC-32 de "123456789" es 0xCBF43926.
+  const patron = new TextEncoder().encode('123456789');
+  check('zip: CRC-32 contra vector conocido', crc32(patron) === 0xcbf43926,
+    '0x' + crc32(patron).toString(16).toUpperCase());
+
+  const a = new TextEncoder().encode('hola');
+  const b = new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x42]);
+  const zip = buildZip([
+    { name: 'uno.txt', data: a },
+    { name: 'dos.bin', data: b },
+  ]);
+  // 30 bytes de cabecera + nombre + datos, por archivo; 46 + nombre en el
+  // directorio central; 22 del cierre.
+  const esperado =
+    30 + 7 + a.length + (30 + 7 + b.length) + (46 + 7) + (46 + 7) + 22;
+  check('zip: tamaño exacto según el formato', zip.size === esperado,
+    `${zip.size} bytes, esperado ${esperado}`);
+
+  check('zip: nombres saneados y sin colisión', (() => {
+    const usados = new Set<string>();
+    const uno = safeFileName('Café / Patio', usados, '.jpg');
+    const dos = safeFileName('Café / Patio', usados, '.jpg');
+    return uno === 'Cafe  Patio.jpg' && dos === 'Cafe  Patio (2).jpg';
+  })(), 'acentos y duplicados');
+}
+
+async function solidBitmap(width: number, height: number): Promise<ImageBitmap> {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#3b6ea5';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#c4a24a';
+  ctx.fillRect(0, Math.floor(height / 2), width, Math.ceil(height / 2));
+  return createImageBitmap(canvas);
 }
 
 /** Camara equivalente a la del visor, mirando a un yaw/pitch dados. */
